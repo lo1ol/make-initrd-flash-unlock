@@ -1,0 +1,27 @@
+#!/bin/bash
+
+. /.initrd/initenv
+. uevent-sh-functions
+. initrd-sh-functions
+
+DEVNAME="${DEVNAME#/dev}"
+DEVNAME="${DEVNAME#/}"
+DEVNAME="/dev/$DEVNAME"
+
+mkdir -p /var/log
+
+echo "$ID_MODEL" >> /var/log/flash-unlock
+echo "$ID_SERIAL" >> /var/log/flash-unlock
+echo "$ID_PART_TABLE_UUID" >> /var/log/flash-unlock
+echo "$DEVTYPE" >> /var/log/flash-unlock
+
+
+[ "$DEVTYPE" = "disk" ] || exit 0
+[ "$ID_SERIAL" = "RUTOKEN_MassStorage_2_1234567812345600-0:1" ] || exit 0
+
+event="$(make_event)"
+environ -q > "$event"
+echo "LOCKED_FLASH_ROOT='$DEVNAME'" >> "$event"
+release_event flash-unlock "$event"
+
+exit 0

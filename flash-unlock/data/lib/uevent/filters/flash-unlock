@@ -1,0 +1,19 @@
+#!/bin/bash
+
+. /.initrd/initenv
+. uevent-sh-functions
+. initrd-sh-functions
+
+DEVNAME="${DEVNAME#/dev}"
+DEVNAME="${DEVNAME#/}"
+DEVNAME="/dev/$DEVNAME"
+
+[ "$DEVTYPE" = "disk" ] || exit 0
+[ "$ID_SERIAL" = "$FLASH_SERIAL" ] || exit 0
+
+event="$(make_event)"
+environ -q > "$event"
+echo "LOCKED_FLASH_ROOT='$DEVNAME'" >> "$event"
+release_event flash-unlock "$event"
+
+exit 0
