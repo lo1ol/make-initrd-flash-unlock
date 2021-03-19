@@ -1,2 +1,0 @@
-register_parameter string FLASH_PIN
-register_parameter string LOCKED_DEV

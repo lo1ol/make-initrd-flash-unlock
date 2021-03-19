@@ -13,6 +13,7 @@ DEVNAME="/dev/$DEVNAME"
 
 event="$(make_event)"
 environ -q > "$event"
+echo "LOCKED_FLASH_ROOT_NUM='$((${FLASH_SERIAL: -1} + 1))'" >> "$event"
 echo "LOCKED_FLASH_ROOT='$DEVNAME'" >> "$event"
 release_event flash-unlock "$event"
 

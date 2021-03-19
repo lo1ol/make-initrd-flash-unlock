@@ -83,7 +83,7 @@ handler()
         	        print_msg "Invalid PIN. ($i attempts left)"
 			printf 'ERROR(flash-unlock): invalid pin entered\n' >&2
         	else
-        	        print_msg --text "No attempts left"
+        	        print_msg "No attempts left"
 			printf 'ERROR(flash-unlock): no pin code attempts left\n' >&2
         	        sleep 1
 		fi
@@ -91,7 +91,8 @@ handler()
 
 	if [ "$r" = "0" ]
 	then
-		exec_apdu "80:53:11:01:04:82:02:02:03"
+		local part_num=$(printf '%02x' $LOCKED_FLASH_ROOT_NUM)
+		exec_apdu "80:53:11:01:04:82:02:$part_num:03"
 		r=$?
 		if [ "$r" != "0" ]
         	then
