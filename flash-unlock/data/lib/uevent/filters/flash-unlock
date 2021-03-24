@@ -49,6 +49,7 @@ environ -q > "$event"
 echo "LOCKED_FLASH_NUM='$((${LOCKED_FLASH_SERIAL: -1} + 1))'" >> "$event"
 echo "LOCKED_FLASH_PERM='$LOCKED_FLASH_PERM'" >> "$event"
 echo "LOCKED_FLASH_DEV='$LOCKED_FLASH_DEV'" >> "$event"
+echo "LOCKED_FLASH_COUNT='$FLASH_UNLOCK'" >> "$event"
 release_event flash-unlock "$event"
 
 exit 0

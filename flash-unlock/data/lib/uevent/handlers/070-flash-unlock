@@ -5,6 +5,9 @@
 . initrd-sh-functions
 . rdshell-sh-functions
 
+WORK_DIR=/.initrd/flash-unlock
+UNLOCKED_DEVICE_FILE=$WORK_DIR/unlocked_device
+
 exec_apdu()
 {
 	local apdu="$1"
@@ -51,6 +54,65 @@ get_pin()
 	return 0
 }
 
+try_login()
+{
+        local r=0
+
+        pidof pcscd > /dev/null
+        [ "$?" = "1" ] || return $r
+
+        pcscd -fd > /var/log/pcscd &
+        for i in 3 2 1 0
+        do
+                local pin_length res
+                get_pin
+                r=$?
+                if [ "$r" != "0" ]
+                then
+                        return $r
+                fi
+
+                pin_length=$(echo -n $pin | wc -m)
+                pin_length=$(printf "%02X\n" $pin_length)
+                pin=$(echo -n $pin | hexdump -v -e '/1 ":%02X"')
+
+                out=$(exec_apdu "00:20:00:02:$pin_length$pin")
+                r=$?
+                if [ "$r" = "0" ]
+                then
+                        break
+                fi
+
+                if [ "$i" != "0" ]
+                then
+                        print_msg "Invalid PIN. ($i attempts left)"
+                        printf 'ERROR(flash-unlock): invalid pin entered\n' >&2
+                else
+                        print_msg "No attempts left"
+                        printf 'ERROR(flash-unlock): no pin code attempts left\n' >&2
+                fi
+        done
+
+        return $r
+}
+
+try_logout()
+{
+        unlocked_device_count=$(wc -l "$UNLOCKED_DEVICE_FILE" | cut -f1 -d' ')
+        if [ "$unlocked_device_count" = "$LOCKED_FLASH_COUNT" ]
+        then
+                exec_apdu "80:40:00:00:00"
+                killall pcscd
+        fi
+}
+
+log_unlock()
+{
+        mkdir -p $WORK_DIR
+        echo ${LOCKED_FLASH_DEV} >> "$UNLOCKED_DEVICE_FILE"
+}
+
+
 get_perm_id()
 {
 	case $1 in
@@ -74,58 +136,25 @@ get_perm_id()
 
 handler()
 {
-	local r
 	printf "Trying to unlock %s.\n" "${LOCKED_FLASH_DEV}"
+	log_unlock
 	
-	pcscd -fd > /var/log/pcscd &
-	for i in 3 2 1 0 
-	do
-		local pin_length res
-		get_pin
-		r=$?
-		if [ "$r" != "0" ]
-		then
-			return $r
-		fi
-		
-		pin_length=$(echo -n $pin | wc -m) 
-	        pin_length=$(printf "%02X\n" $pin_length)
-	        pin=$(echo -n $pin | hexdump -v -e '/1 ":%02X"')
+	try_login || return $?
 
-	        out=$(exec_apdu "00:20:00:02:$pin_length$pin")
-		r=$?
-		if [ "$r" = "0" ]
-        	then
-                	break
-        	fi
-        	        
-        	if [ "$i" != "0" ]
-        	then
-        	        print_msg "Invalid PIN. ($i attempts left)"
-			printf 'ERROR(flash-unlock): invalid pin entered\n' >&2
-        	else
-        	        print_msg "No attempts left"
-			printf 'ERROR(flash-unlock): no pin code attempts left\n' >&2
-		fi
-	done
-
-	if [ "$r" = "0" ]
-	then
-		local part_num=$(printf '%02x' $LOCKED_FLASH_NUM)
-		local part_perm=$(get_perm_id $LOCKED_FLASH_PERM)
-		exec_apdu "80:53:11:01:04:82:02:$part_num:$part_perm"
-		r=$?
-		if [ "$r" != "0" ]
-        	then
-        		printf 'ERROR(flash-unlock): error occured while unlock root\n' >&2
-		else
-			print_msg "root unlocked"
-			partprobe "$LOCKED_FLASH_DEV"
-		fi
+	local part_num=$(printf '%02x' $LOCKED_FLASH_NUM)
+	local part_perm=$(get_perm_id $LOCKED_FLASH_PERM)
+	exec_apdu "80:53:11:01:04:82:02:$part_num:$part_perm"
+	
+	local r=$?
+	if [ "$r" != "0" ]
+        then
+        	printf 'ERROR(flash-unlock): error occured while unlock root\n' >&2
+	else
+		print_msg "partition on device $LOCKED_FLASH_DEV is unlocked"
+		partprobe "$LOCKED_FLASH_DEV"
 	fi
 
-	exec_apdu "80:40:00:00:00"
-	killall pcscd
+	try_logout
 	return $r
 }
 
