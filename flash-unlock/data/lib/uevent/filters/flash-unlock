@@ -8,13 +8,47 @@ DEVNAME="${DEVNAME#/dev}"
 DEVNAME="${DEVNAME#/}"
 DEVNAME="/dev/$DEVNAME"
 
+get_serial()
+{
+	local param=$1
+	echo "${param%=*}"
+}
+
+get_perm()
+{
+	local param=$1
+	echo "${param##*=}"
+}
+
 [ "$DEVTYPE" = "disk" ] || exit 0
-[ "$ID_SERIAL" = "$FLASH_SERIAL" ] || exit 0
+
+export i=0
+while [ $i -lt ${FLASH_UNLOCK:-0} ]; do
+	eval "param=\"\${FLASH_UNLOCK$i-}\""
+	serial=$(get_serial $param)
+	perm=$(get_perm $param)
+
+	dev=
+	get_dev dev $serial
+
+	if [ "$dev" ]
+	then
+		LOCKED_FLASH_DEV=$dev
+		LOCKED_FLASH_PERM=$perm
+		LOCKED_FLASH_SERIAL=$ID_SERIAL
+	fi
+
+	i=$(($i + 1))
+done
+
+echo "$LOCKED_FLASH_DEV" >> /var/log/flash.log
+[ "$LOCKED_FLASH_DEV" ] || exit 0
 
 event="$(make_event)"
 environ -q > "$event"
-echo "LOCKED_FLASH_ROOT_NUM='$((${FLASH_SERIAL: -1} + 1))'" >> "$event"
-echo "LOCKED_FLASH_ROOT='$DEVNAME'" >> "$event"
+echo "LOCKED_FLASH_NUM='$((${LOCKED_FLASH_SERIAL: -1} + 1))'" >> "$event"
+echo "LOCKED_FLASH_PERM='$LOCKED_FLASH_PERM'" >> "$event"
+echo "LOCKED_FLASH_DEV='$LOCKED_FLASH_DEV'" >> "$event"
 release_event flash-unlock "$event"
 
 exit 0

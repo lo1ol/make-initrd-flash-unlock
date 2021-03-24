@@ -1,2 +1,2 @@
 register_parameter string FLASH_PIN
-register_parameter string FLASH_SERIAL
+register_array string FLASH_UNLOCK
